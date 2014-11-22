@@ -183,7 +183,7 @@ sub hash_entry($$) {
     my ($self, $entry) = @_;
     my %attrs = ();
     foreach my $key ($entry->attributes) {
-        $attrs{$key} = $entry->get_value($key);
+        $attrs{$key} = $entry->get_value($key, asref => 1);
     }
     return %attrs;
 }
