@@ -20,6 +20,7 @@ use Net::LDAP::Constant qw{LDAP_SYNC_REFRESH_AND_PERSIST};
 use Array::Diff;
 
 our $VERSION = '0.1';
+use constant DEBUG => 1;
 
 sub new($$$) {
     my ($class, $statefile, $callbacks) = @_;
@@ -44,14 +45,14 @@ sub listen($$$) {
     my $ldap = Net::LDAP->new($uri);
 
     my $sigint = sub {
-        print "Clean exit\n";
+        print "Clean exit\n" if DEBUG;
         $self->save();
         $ldap->disconnect();
     };
 
     $SIG{INT} = $sigint;
 
-    print "Actual cookie: {$self->{cookie}}\n";
+    print "Actual cookie: {$self->{cookie}}\n" if DEBUG;
 
     my $req = Net::LDAP::Control::SyncRequest->new(
         mode => LDAP_SYNC_REFRESH_AND_PERSIST,
@@ -69,7 +70,7 @@ sub listen($$$) {
 sub save {
     my ($self) = @_;
 
-    print "writing state, cookie $self->{cookie}\n";
+    print "writing state, cookie $self->{cookie}\n" if DEBUG;
     DumpFile($self->{statefile}, {
         cookie => $self->{cookie},
         entries => $self->{entries},
@@ -97,7 +98,7 @@ sub notify {
 sub handle_syncinfo($$$) {
     my ($self, $message, $entry) = @_;
     my @controls = $message->control;
-    print "SyncInfo\n";
+    print "SyncInfo\n" if DEBUG;
 
     warn "Unexpected SyncInfo with controls, ignored" if @controls;
 
@@ -105,12 +106,12 @@ sub handle_syncinfo($$$) {
               || $entry->{asn}{refreshPresent}{cookie};
 
     if (defined $cookie) {
-        print "Received new cookie: $cookie\n";
+        print "Received new cookie: $cookie\n" if DEBUG;
         $self->{cookie} = $cookie;
         $self->save();
     }
     else {
-        print "\tno cookie but: ", Dump($entry), "\n";
+        print "\tno cookie but: ", Dump($entry), "\n" if DEBUG;
     }
 }
 
@@ -124,14 +125,14 @@ sub handle_entry($$$) {
         return;
     }
 
-    print "entry={\n", Dump($entry), "\n}\n" if $entry;
+    print "entry={\n", Dump($entry), "\n}\n" if $entry and DEBUG;
 
     my $control = $controls[0];
     if ($control->isa('Net::LDAP::Control::SyncState')) {
         my $state = $control->state;
         my $dn = $entry->dn();
 
-        printf "Sync State Control: dispatching: %s (state=%i)\n", $dn, $state;
+        printf "Sync State Control: %s (state=%i)\n", $dn, $state if DEBUG;
 
         if ($state == 0) { # present
             warn "Entry control says present, nothing to do";
@@ -157,9 +158,6 @@ sub handle_entry($$$) {
         else {
             warn "Entry control unexpected state, ", $state, " ignoring";
         }
-    } elsif ($control->isa('Net::LDAP::Control::SyncDone')) {
-        print "  Received Sync Done Control\n";
-        print "  refreshDeletes: ", $control->refreshDeletes, "\n";
     }
     else {
         warn "Entry with unexpected control type: ", ref $control;
@@ -169,7 +167,7 @@ sub handle_entry($$$) {
 sub handle_entry_changed($$) {
     my ($self, $entry) = @_;
     my $dn = $entry->dn;
-    print "Entry changed ", $dn, "\n";
+    print "Entry changed ", $dn, "\n" if DEBUG;
 
     my %attrs_old = %{$self->{entries}{$dn}};
     my %attrs_new = $self->hash_entry($entry);
