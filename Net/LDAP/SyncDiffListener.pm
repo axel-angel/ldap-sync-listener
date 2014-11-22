@@ -15,6 +15,7 @@ use YAML::Syck;
 use Net::LDAP;
 use Net::LDAP::Control::SyncRequest;
 use Net::LDAP::Constant qw{LDAP_SYNC_REFRESH_AND_PERSIST};
+use Array::Diff;
 
 our $VERSION = '0.1';
 
@@ -168,10 +169,28 @@ sub handle_entry_changed($$) {
     my $dn = $entry->dn;
     print "Entry changed ", $dn, "\n";
 
-    # TODO: handle diff here
+    my %attrs_old = %{$self->{entries}{$dn}};
+    my %attrs_new = $self->hash_entry($entry);
 
-    my %attrs = $self->hash_entry($entry);
-    $self->{entries}{$dn} = \%attrs;
+    my @keys_old = keys %attrs_old;
+    my @keys_new = keys %attrs_new;
+
+    # add/del of values for attributes
+    my @keys_all = keys(%{{ map { $_ => 1 } (@keys_old, @keys_new) }});
+    foreach my $key (@keys_all) {
+        my $vals_old = $attrs_old{$key} // [];
+        my $vals_new = $attrs_new{$key} // [];
+
+        my $diff = Array::Diff->diff($vals_old, $vals_new);
+        foreach (@{$diff->deleted}) {
+            $self->{callbacks}{del_attr_value}($entry, $key, $_);
+        }
+        foreach (@{$diff->added}) {
+            $self->{callbacks}{add_attr_value}($entry, $key, $_);
+        }
+    }
+
+    $self->{entries}{$dn} = \%attrs_new;
 }
 
 sub handle_other($$$) {
