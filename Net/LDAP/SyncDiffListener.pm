@@ -172,7 +172,7 @@ sub handle_entry($$$) {
             $self->handle_entry_changed($uuid, $entry);
         }
         elsif ($state == 3) { # delete
-            $self->{callbacks}{del_entry}($entry);
+            $self->{callbacks}{del_entry}($entry->dn);
             delete $self->{entries}{$uuid};
         }
         else {
