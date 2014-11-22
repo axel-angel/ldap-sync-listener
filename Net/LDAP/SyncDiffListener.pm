@@ -11,7 +11,6 @@ package Net::LDAP::SyncDiffListener;
 
 use strict;
 use warnings;
-use diagnostics; # FIXME: to remove
 
 use YAML::Syck;
 use Net::LDAP;
@@ -20,7 +19,7 @@ use Net::LDAP::Constant qw{LDAP_SYNC_REFRESH_AND_PERSIST};
 use Array::Diff;
 
 our $VERSION = '0.1';
-use constant DEBUG => 1;
+use constant DEBUG => 0;
 
 sub new($$$) {
     my ($class, $statefile, $callbacks) = @_;
