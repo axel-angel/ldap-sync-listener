@@ -130,29 +130,31 @@ sub handle_entry($$$) {
     if ($control->isa('Net::LDAP::Control::SyncState')) {
         my $state = $control->state;
         my $dn = $entry->dn();
+        my $uuid = unpack('H*', $control->entryUUID);
 
-        printf "Sync State Control: %s (state=%i)\n", $dn, $state if DEBUG;
+        printf "Sync State Control: %s (uuid=%s, state=%i)\n",
+            $dn, $uuid, $state if DEBUG;
 
         if ($state == 0) { # present
             warn "Entry control says present, nothing to do";
         }
         elsif ($state == 1) { # add
-            if (defined $self->{entries}{$dn}) {
+            if (defined $self->{entries}{$uuid}) {
                 warn "Entry control says it's new when it's not";
-                $self->handle_entry_changed($entry);
+                $self->handle_entry_changed($uuid, $entry);
             }
             else {
                 $self->{callbacks}{add_entry}($entry);
                 my %attrs = $self->hash_entry($entry);
-                $self->{entries}{$dn} = \%attrs;
+                $self->{entries}{$uuid} = \%attrs;
             }
         }
         elsif ($state == 2) { # modify
-            $self->handle_entry_changed($entry);
+            $self->handle_entry_changed($uuid, $entry);
         }
         elsif ($state == 3) { # delete
             $self->{callbacks}{del_entry}($entry);
-            delete $self->{entries}{$dn};
+            delete $self->{entries}{$uuid};
         }
         else {
             warn "Entry control unexpected state, ", $state, " ignoring";
@@ -164,11 +166,11 @@ sub handle_entry($$$) {
 }
 
 sub handle_entry_changed($$) {
-    my ($self, $entry) = @_;
+    my ($self, $uuid, $entry) = @_;
     my $dn = $entry->dn;
     print "Entry changed ", $dn, "\n" if DEBUG;
 
-    my %attrs_old = %{$self->{entries}{$dn}};
+    my %attrs_old = %{$self->{entries}{$uuid}};
     my %attrs_new = $self->hash_entry($entry);
 
     my @keys_old = keys %attrs_old;
@@ -189,7 +191,7 @@ sub handle_entry_changed($$) {
         }
     }
 
-    $self->{entries}{$dn} = \%attrs_new;
+    $self->{entries}{$uuid} = \%attrs_new;
 }
 
 sub handle_other($$$) {
