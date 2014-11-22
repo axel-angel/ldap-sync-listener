@@ -96,13 +96,19 @@ sub handle_syncinfo($$$) {
     my @controls = $message->control;
     print "SyncInfo\n";
 
-    my $cookie = $entry->{asn}{refreshDelete}{cookie};
+    warn "Unexpected SyncInfo with controls, ignored" if @controls;
+
+    my $cookie = $entry->{asn}{refreshDelete}{cookie}
+              || $entry->{asn}{refreshPresent}{cookie};
+
     if (defined $cookie) {
+        print "Received new cookie: $cookie\n";
         $self->{cookie} = $cookie;
         $self->save();
     }
-
-    warn "Unexpected SyncInfo with controls, ignored" if @controls;
+    else {
+        print "\tno cookie but: ", Dump($entry), "\n";
+    }
 }
 
 sub handle_entry($$$) {
