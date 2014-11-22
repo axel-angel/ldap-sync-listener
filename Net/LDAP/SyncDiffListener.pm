@@ -9,25 +9,37 @@ use strict;
 use warnings;
 use diagnostics; # FIXME: to remove
 
-require Exporter;
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(ldap_listen);
-
 use YAML::Syck;
 use Net::LDAP;
 use Net::LDAP::Control::SyncRequest;
 use Net::LDAP::Constant qw{LDAP_SYNC_REFRESH_AND_PERSIST};
 
-sub ldap_listen($$$$) {
-    my ($uri, $statefile, $search, $callbacks) = @_;
+our $VERSION = '0.1';
 
+sub new($$) {
+    my ($class, $statefile) = @_;
+
+    my $obj = bless {}, $class;
+    $obj->{statefile} = $statefile;
+    $obj->{cookie} = "";
+    $obj->{entries} = {};
+
+    if (-e $obj->{statefile}) {
+        my $state = LoadFile($statefile) if -e $obj->{statefile};
+        $obj->{cookie} = $state->{cookie};
+        $obj->{entries} = $state->{entries}
+    }
+
+    return $obj;
+}
+
+sub listen($$$$) {
+    my ($self, $uri, $search, $callbacks) = @_;
     my $ldap = Net::LDAP->new($uri);
-
-    my $s = {};
-    $s = LoadFile($statefile) if -e $statefile;
 
     my $sigint = sub {
         print "Clean exit\n";
+        $self->save();
         $ldap->disconnect();
         sleep(1);
         exit 0;
@@ -35,68 +47,71 @@ sub ldap_listen($$$$) {
 
     $SIG{INT} = $sigint;
 
-    print "Actual cookie: {$s->{cookie}}\n" if defined $s->{cookie};
-
-    my $notify = sub {
-        my ($message, $entry) = @_;
-        my @controls = $message->control;
-
-        print "Received something type(entry)=", ref $entry, "\n";
-        print "  with ", (scalar @controls), " controls\n";
-
-
-        if (not defined $entry) {
-            print "Skipping undefined entry\n";
-        }
-        elsif ($entry->isa('Net::LDAP::Intermediate::SyncInfo')) {
-            $s->{cookie} = $entry->{asn}{refreshDelete}{cookie};
-            print "SyncInfo\n";
-            if (defined $s->{cookie}) {
-                print "  write cookie: $s->{cookie}\n";
-                DumpFile($statefile, $s);
-            }
-            else {
-                print "  no new cookie\n";
-            }
-        }
-        elsif ($entry->isa('Net::LDAP::Entry')) {
-            print "Regular entry\n";
-        }
-
-        print "  entry={\n", Dump($entry), "\n}\n" if $entry;
-
-        foreach my $control (@controls) {
-            print "*"x80, "\n";
-
-            print "- Control type ", ref $control, "\n";
-            if ($control->isa('Net::LDAP::Control::SyncState')) {
-                print "  Received Sync State Control\n";
-                print "  entry dns: ", $entry->dn(), "\n";
-                print "  state: ", $control->state, "\n";
-                print "  entryUUID: ", $control->entryUUID, "\n";
-            } elsif ($control->isa('Net::LDAP::Control::SyncDone')) {
-                print "  Received Sync Done Control\n";
-                print "  refreshDeletes: ", $control->refreshDeletes, "\n";
-            }
-            else {
-                warn "Received something else: ", ref $control, "\n";
-            }
-        }
-        print "="x80, "\n";
-    };
+    print "Actual cookie: {$self->{cookie}}\n";
 
     my $req = Net::LDAP::Control::SyncRequest->new(
         mode => LDAP_SYNC_REFRESH_AND_PERSIST,
         critical => 'TRUE',
-        cookie => $s->{cookie} // "",
+        cookie => $self->{cookie} // "",
     );
-
 
     my $mesg = $ldap->search(
         control  => [ $req ],
-        callback => $notify,
+        callback => sub { $self->notify(@_) },
         %$search, # should define: base, scope, filter, attrs
     );
+}
+
+sub save {
+    my ($self) = @_;
+
+    print "writing state, cookie $self->{cookie}\n";
+    DumpFile($self->{statefile}, {
+        cookie => $self->{cookie},
+        entries => $self->{entries},
+    });
+}
+
+sub notify {
+    my ($self, $message, $entry) = @_;
+    my @controls = $message->control;
+
+    print "Received something type(entry)=", ref $entry, "\n";
+    print "  with ", (scalar @controls), " controls\n";
+
+
+    if (not defined $entry) {
+        warn "Ignoring undefined entry\n";
+    }
+    elsif ($entry->isa('Net::LDAP::Intermediate::SyncInfo')) {
+        $self->{cookie} = $entry->{asn}{refreshDelete}{cookie};
+        print "SyncInfo\n";
+        $self->save();
+    }
+    elsif ($entry->isa('Net::LDAP::Entry')) {
+        print "Regular entry\n";
+    }
+
+    print "  entry={\n", Dump($entry), "\n}\n" if $entry;
+
+    foreach my $control (@controls) {
+        print "*"x80, "\n";
+
+        print "- Control type ", ref $control, "\n";
+        if ($control->isa('Net::LDAP::Control::SyncState')) {
+            print "  Received Sync State Control\n";
+            print "  entry dns: ", $entry->dn(), "\n";
+            print "  state: ", $control->state, "\n";
+            print "  entryUUID: ", $control->entryUUID, "\n";
+        } elsif ($control->isa('Net::LDAP::Control::SyncDone')) {
+            print "  Received Sync Done Control\n";
+            print "  refreshDeletes: ", $control->refreshDeletes, "\n";
+        }
+        else {
+            warn "Received something else: ", ref $control, "\n";
+        }
+    }
+    print "="x80, "\n";
 }
 
 1;
