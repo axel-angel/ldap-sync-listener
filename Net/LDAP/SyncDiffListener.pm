@@ -66,7 +66,7 @@ sub listen($$$) {
     );
 }
 
-sub save {
+sub save() {
     my ($self) = @_;
 
     print "writing state, cookie $self->{cookie}\n" if DEBUG;
@@ -76,7 +76,7 @@ sub save {
     });
 }
 
-sub notify {
+sub notify($$$) {
     my ($self, $message, $entry) = @_;
 
     if (not defined $entry) {
