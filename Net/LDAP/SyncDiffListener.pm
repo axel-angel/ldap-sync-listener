@@ -3,6 +3,8 @@
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 #
+# requires: libnet-ldap-perl libyaml-syck-perl libarray-diff-perl
+#
 # LDAP Sync spec: http://tools.ietf.org/html/rfc4533
 
 package Net::LDAP::SyncDiffListener;
