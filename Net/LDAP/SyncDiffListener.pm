@@ -204,7 +204,8 @@ sub hash_entry($$) {
     my ($self, $entry) = @_;
     my %attrs = ();
     foreach my $key ($entry->attributes) {
-        $attrs{$key} = $entry->get_value($key, asref => 1);
+        my $values = $entry->get_value($key, asref => 1);
+        $attrs{$key} = ref $values ? $values : [ $values ];
     }
     return %attrs;
 }
