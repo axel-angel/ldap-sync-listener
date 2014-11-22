@@ -101,6 +101,8 @@ sub handle_syncinfo($$$) {
 
     warn "Unexpected SyncInfo with controls, ignored" if @controls;
 
+
+    # check and take the cookie
     my $cookie = $entry->{asn}{refreshDelete}{cookie}
               || $entry->{asn}{refreshPresent}{cookie};
 
@@ -109,8 +111,22 @@ sub handle_syncinfo($$$) {
         $self->{cookie} = $cookie;
         $self->save();
     }
-    else {
-        print "\tno cookie but: ", Dump($entry), "\n" if DEBUG;
+
+    # check and handle refreshOnly deletions
+    my $syncidset = $entry->{asn}{syncIdSet};
+    if ($syncidset and $syncidset->{syncUUIDs}) {
+        my %uuids = map { unpack('H*', $_) => 1 } @{$syncidset->{syncUUIDs}};
+        my $islistdel = $syncidset->{refreshDeletes};
+
+        foreach my $uuid (keys %{$self->{entries}}) {
+            my $isdel = $islistdel == defined $uuids{$uuid};
+
+            if ($isdel) {
+                my $dn = $self->{entries}{$uuid}{dn};
+                $self->{callbacks}{del_entry}($dn);
+                delete $self->{entries}{$uuid};
+            }
+        }
     }
 }
 

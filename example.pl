@@ -21,8 +21,8 @@ my %callbacks = (
         print "add_entry: ", $entry->dn(), "\n";
     },
     del_entry => sub {
-        my ($entry) = @_;
-        print "del_entry: ", $entry->dn(), "\n";
+        my ($dn) = @_;
+        print "del_entry: ", $dn, "\n";
     },
     add_attr_value => sub {
         my ($entry, $attr, $value) = @_;
