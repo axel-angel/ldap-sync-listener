@@ -146,7 +146,10 @@ sub handle_entry($$$) {
             else {
                 $self->{callbacks}{add_entry}($entry);
                 my %attrs = $self->hash_entry($entry);
-                $self->{entries}{$uuid} = \%attrs;
+                $self->{entries}{$uuid} = {
+                    dn => $entry->dn,
+                    attrs => \%attrs
+                };
             }
         }
         elsif ($state == 2) { # modify
@@ -170,7 +173,7 @@ sub handle_entry_changed($$) {
     my $dn = $entry->dn;
     print "Entry changed ", $dn, "\n" if DEBUG;
 
-    my %attrs_old = %{$self->{entries}{$uuid}};
+    my %attrs_old = %{$self->{entries}{$uuid}{attrs}};
     my %attrs_new = $self->hash_entry($entry);
 
     my @keys_old = keys %attrs_old;
@@ -191,7 +194,10 @@ sub handle_entry_changed($$) {
         }
     }
 
-    $self->{entries}{$uuid} = \%attrs_new;
+    $self->{entries}{$uuid} = {
+        dn => $entry->dn,
+        attrs => \%attrs_new,
+    };
 }
 
 sub handle_other($$$) {
