@@ -8,6 +8,7 @@
 # LDAP Sync spec: http://tools.ietf.org/html/rfc4533
 
 package Net::LDAP::SyncDiffListener;
+use parent 'Net::LDAP';
 
 use strict;
 use warnings;
@@ -21,32 +22,34 @@ use Array::Diff;
 our $VERSION = '0.1';
 use constant DEBUG => 0;
 
-sub new($$$) {
-    my ($class, $statefile, $callbacks) = @_;
+sub new {
+    my $class = shift;
+    my $obj = $class->SUPER::new(@_);
 
-    my $obj = bless {}, $class;
-    $obj->{statefile} = $statefile;
-    $obj->{callbacks} = $callbacks;
+    $obj->{statefile} = undef;
+    $obj->{callbacks} = {};
     $obj->{cookie} = "";
     $obj->{entries} = {};
-
-    if (-e $obj->{statefile}) {
-        my $state = LoadFile($statefile) if -e $obj->{statefile};
-        $obj->{cookie} = $state->{cookie};
-        $obj->{entries} = $state->{entries}
-    }
 
     return $obj;
 }
 
-sub listen($$$) {
-    my ($self, $uri, $search) = @_;
-    my $ldap = Net::LDAP->new($uri);
+sub listen($$$$) {
+    my ($self, $statefile, $search, $callbacks) = @_;
+
+    $self->{statefile} = $statefile;
+    $self->{callbacks} = $callbacks;
+
+    if (-e $self->{statefile}) {
+        my $state = LoadFile($statefile) if -e $self->{statefile};
+        $self->{cookie} = $state->{cookie};
+        $self->{entries} = $state->{entries}
+    }
 
     my $sigint = sub {
         print "Clean exit\n" if DEBUG;
         $self->save();
-        $ldap->disconnect();
+        $self->disconnect();
     };
 
     $SIG{INT} = $sigint;
@@ -59,7 +62,7 @@ sub listen($$$) {
         cookie => $self->{cookie} // "",
     );
 
-    my $mesg = $ldap->search(
+    my $mesg = $self->search(
         control  => [ $req ],
         callback => sub { $self->notify(@_) },
         %$search, # should define: base, scope, filter, attrs

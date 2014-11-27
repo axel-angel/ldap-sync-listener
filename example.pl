@@ -36,5 +36,5 @@ my %callbacks = (
     },
 );
 
-my $ldap = Net::LDAP::SyncDiffListener->new("state.yaml", \%callbacks);
-$ldap->listen("ldaps://ldap.example.com", \%search);
+my $ldap = Net::LDAP::SyncDiffListener->new("ldaps://ldap.example.com");
+$ldap->listen("state.yaml", \%search, \%callbacks);
