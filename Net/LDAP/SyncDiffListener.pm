@@ -95,6 +95,7 @@ sub notify($$$) {
         $self->handle_other($message, $entry);
     }
 
+    $self->save();
 }
 
 sub handle_syncinfo($$$) {
