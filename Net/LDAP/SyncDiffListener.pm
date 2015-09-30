@@ -47,14 +47,6 @@ sub listen($$$$) {
         $self->{entries} = $state->{entries}
     }
 
-    my $sigint = sub {
-        print "Clean exit\n" if DEBUG;
-        $self->save();
-        $self->disconnect();
-    };
-
-    $SIG{INT} = $sigint;
-
     print "Actual cookie: {$self->{cookie}}\n" if DEBUG;
 
     my $req = Net::LDAP::Control::SyncRequest->new(
