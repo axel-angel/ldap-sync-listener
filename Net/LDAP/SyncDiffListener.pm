@@ -25,6 +25,7 @@ use constant DEBUG => 0;
 sub new {
     my $class = shift;
     my $obj = $class->SUPER::new(@_);
+    return $obj unless $obj; # propagate LDAP error, look at $@
 
     $obj->{statefile} = undef;
     $obj->{callbacks} = {};
